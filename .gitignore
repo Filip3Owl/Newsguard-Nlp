@@ -1,0 +1,62 @@
+# ── Ambiente virtual ─────────────────────────────────────────────────────────
+venv/
+.env
+.venv/
+
+# ── Dados (arquivos grandes — baixe via Kaggle) ───────────────────────────────
+data/*.csv
+data/*.tsv
+data/*.json
+data/*.parquet
+data/*.zip
+
+# ── Artefatos de modelo ───────────────────────────────────────────────────────
+models/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.ckpt
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Cobertura e testes ────────────────────────────────────────────────────────
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# ── IDEs e editores ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs e outputs temporários ───────────────────────────────────────────────
+*.log
+logs/
+runs/
+outputs/
+results/tmp/
+
+# ── NLTK data (cache local) ───────────────────────────────────────────────────
+nltk_data/
