@@ -1,86 +1,86 @@
 # Newsguard NLP
 
-> **Detecting fake news with progressively complex NLP models — from classical TF-IDF baselines to transformer fine-tuning.**
+> **Detecção automática de fake news com modelos de NLP progressivamente complexos — do TF-IDF clássico ao fine-tuning de transformers.**
 
 ---
 
-## The Story
+## A História
 
-Every day, millions of news articles circulate online. Some are carefully reported facts. Others are fabricated to manipulate, provoke, or mislead. The challenge: **can a machine learn to tell the difference — and explain its reasoning?**
+Todos os dias, milhões de artigos jornalísticos circulam online. Alguns são fatos cuidadosamente apurados. Outros são fabricados para manipular, provocar ou enganar. O desafio: **uma máquina consegue aprender a diferença — e explicar o seu raciocínio?**
 
-This project tackles that question through a progressive pipeline of NLP models, each layer more sophisticated than the last. We start with the simplest possible approach and build up, always asking: *does the added complexity actually earn its cost?*
+Este projeto enfrenta essa questão através de uma pipeline progressiva de modelos de NLP, onde cada camada é mais sofisticada que a anterior. Começamos pela abordagem mais simples possível e evoluímos, sempre perguntando: *a complexidade adicional realmente se justifica?*
 
-The dataset covers **~45,000 political news articles** from 2015–2017 — a period of intense media polarization surrounding the US election. Real articles come from Reuters; fake ones from catalogued disinformation websites.
+O dataset cobre **~45.000 artigos de política americana** entre 2015 e 2017 — um período de intensa polarização midiática em torno das eleições americanas. Artigos reais vêm da Reuters; os falsos, de sites de desinformação catalogados.
 
-Before training a single model, we discovered two critical **data leakage** traps hidden in the dataset — the kind that inflate metrics on paper while building models useless in the real world. Identifying and neutralizing them is the first act of the story.
+Antes de treinar qualquer modelo, identificamos duas armadilhas críticas de **data leakage** escondidas no dataset — o tipo que infla métricas no papel enquanto produz modelos inúteis na prática. Identificá-las e neutralizá-las é o primeiro ato da história.
 
 ---
 
 ## Pipeline
 
-| Level | Approach | Status |
-|-------|----------|--------|
-| **1** | TF-IDF + Logistic Regression + LinearSVC | ✅ Done |
-| 2 | Stylometric Features + XGBoost + SHAP | 🔜 Next |
-| 3 | BiLSTM + GloVe / TextCNN | 🔜 Planned |
-| 4 | DistilBERT / RoBERTa Fine-tuning | 🔜 Planned |
-| 5 | Heterogeneous Ensemble | 🔜 Planned |
+| Nível | Abordagem | Status |
+|-------|-----------|--------|
+| **1** | TF-IDF + Regressão Logística + LinearSVC | ✅ Concluído |
+| 2 | Features Estilométricas + XGBoost + SHAP | 🔜 Próximo |
+| 3 | BiLSTM + GloVe / TextCNN | 🔜 Planejado |
+| 4 | DistilBERT / RoBERTa Fine-tuning | 🔜 Planejado |
+| 5 | Ensemble Heterogêneo | 🔜 Planejado |
 
 ---
 
-## Level 1 — TF-IDF + Linear Models
+## Nível 1 — TF-IDF + Modelos Lineares
 
-### The Approach
+### A Abordagem
 
-Text is converted into sparse high-dimensional vectors using **TF-IDF** (Term Frequency–Inverse Document Frequency), then fed into two linear classifiers:
+O texto é convertido em vetores esparsos de alta dimensão via **TF-IDF** (Term Frequency–Inverse Document Frequency) e alimentado em dois classificadores lineares:
 
-- **Logistic Regression** — probabilistic model, well-calibrated output, interpretable coefficients
-- **LinearSVC** — maximum-margin classifier, faster convergence, stronger regularization
+- **Regressão Logística** — modelo probabilístico com saída calibrada e coeficientes interpretáveis
+- **LinearSVC** — classificador de máxima margem, convergência rápida, regularização mais forte
 
-Both models use `ngram_range=(1,2)` — capturing not just individual words but bigrams like *"fake news"*, *"breaking news"*, *"white house"* — with 100,000 features and sublinear TF scaling.
+Ambos usam `ngram_range=(1,2)` — capturando não apenas palavras individuais, mas bigramas como *"fake news"*, *"breaking news"*, *"white house"* — com 100.000 features e escala logarítmica do TF.
 
-### Data Leakage — The Hidden Traps
+### Data Leakage — As Armadilhas Ocultas
 
-Two leakage sources were identified and neutralized before training:
+Duas fontes de vazamento foram identificadas e neutralizadas antes do treinamento:
 
-**1. Reuters Byline (99.82% signal)**
-Real articles from Reuters always begin with `"CITY (Reuters) -"`. Any bag-of-words model trivially learns `reuters → real` — a shortcut that would fail completely on real-world data.
+**1. Byline Reuters (sinal de 99,82%)**
+Artigos reais da Reuters sempre começam com `"CIDADE (Reuters) -"`. Qualquer modelo bag-of-words aprende trivialmente `reuters → real` — um atalho que falharia completamente em dados do mundo real.
 
-**2. `subject` Column (100% signal)**
-The metadata categories are mutually exclusive between classes (`left-news`, `Government News` for fake vs. `politicsNews`, `worldnews` for real). A naive classifier using only this column achieves perfect accuracy — without reading a single word.
+**2. Coluna `subject` (sinal de 100%)**
+As categorias de metadados são mutuamente exclusivas entre as classes (`left-news`, `Government News` nos fakes vs. `politicsNews`, `worldnews` nos reais). Um classificador ingênuo usando apenas essa coluna alcança acurácia perfeita — sem ler uma única palavra.
 
-Both were removed. The quantified impact: keeping leakage inflates F1 by **+0.64 pp** — modest in absolute terms, but built on a lie.
+Ambas foram removidas. O impacto quantificado: manter o leakage infla o F1 em **+0,64 pp** — modesto em termos absolutos, mas construído sobre uma mentira.
 
-### Results
+### Resultados
 
-Evaluated on a held-out test set of **6,735 articles** (15% of data), stratified split, no leakage.
+Avaliação no conjunto de teste com **6.735 artigos** (15% dos dados), split estratificado, sem leakage.
 
-| Model | Accuracy | F1 Macro | ROC-AUC | Train Time |
-|-------|----------|----------|---------|------------|
-| Logistic Regression | 0.9878 | **0.9878** | **0.9991** | 0.70s |
-| LinearSVC | 0.9939 | **0.9939** | **0.9997** | 3.94s |
+| Modelo | Accuracy | F1 Macro | ROC-AUC | Tempo de Treino |
+|--------|----------|----------|---------|-----------------|
+| Regressão Logística | 0,9878 | **0,9878** | **0,9991** | 0,70s |
+| LinearSVC | 0,9939 | **0,9939** | **0,9997** | 3,94s |
 
-5-fold cross-validation on training set:
+Validação cruzada 5-fold no conjunto de treino:
 
-| Model | Accuracy CV | F1 Macro CV |
-|-------|-------------|-------------|
-| Logistic Regression | 0.9865 ± 0.0018 | 0.9865 ± 0.0018 |
-| LinearSVC | 0.9941 ± 0.0010 | 0.9941 ± 0.0010 |
+| Modelo | Accuracy CV | F1 Macro CV |
+|--------|-------------|-------------|
+| Regressão Logística | 0,9865 ± 0,0018 | 0,9865 ± 0,0018 |
+| LinearSVC | 0,9941 ± 0,0010 | 0,9941 ± 0,0010 |
 
-**LinearSVC wins** on every metric and shows lower variance across folds — more stable generalization. Both models train in under 4 seconds on CPU.
+**LinearSVC vence** em todas as métricas e apresenta menor variância entre os folds — generalização mais estável. Ambos os modelos treinam em menos de 4 segundos na CPU.
 
-### Exploratory Analysis
+### Análise Exploratória
 
 ![EDA Overview](results/level1/eda_overview.png)
 
-Key findings from EDA:
-- Classes are near-balanced: **52.3% fake / 47.7% real**
-- Fake articles have a wider distribution of text lengths — more variance in style
-- Fake titles are significantly longer on average (94 chars vs. 64 chars) — a hint of clickbait behavior
+Principais achados da EDA:
+- Classes quase balanceadas: **52,3% fake / 47,7% real**
+- Artigos falsos têm distribuição de comprimento mais ampla — maior variância de estilo
+- Títulos de fake news são significativamente mais longos em média (94 chars vs. 64 chars) — indício de comportamento clickbait
 
-### Model Evaluation
+### Avaliação dos Modelos
 
-**Logistic Regression**
+**Regressão Logística**
 
 ![LR Evaluation](results/level1/lr_evaluation.png)
 
@@ -88,41 +88,41 @@ Key findings from EDA:
 
 ![SVM Evaluation](results/level1/svm_evaluation.png)
 
-### Model Comparison
+### Comparação dos Modelos
 
 ![Model Comparison](results/level1/model_comparison.png)
 
-Both ROC curves hug the top-left corner — AUC > 0.999. The zoomed view reveals LinearSVC maintains a slight edge at low false-positive rates, the most operationally critical region.
+Ambas as curvas ROC abraçam o canto superior esquerdo — AUC > 0,999. A visão com zoom revela que o LinearSVC mantém uma leve vantagem em taxas baixas de falsos positivos, a região operacionalmente mais crítica.
 
-### What the Model Learned — Feature Interpretability
+### O que o Modelo Aprendeu — Interpretabilidade
 
 ![Feature Importance](results/level1/feature_importance.png)
 
-The coefficients tell a clear story:
+Os coeficientes contam uma história clara:
 
-**Real news** → formal, attributive, institutional language:
-`said`, `reuters`, `president donald`, country names, verbs of attribution
+**Notícias reais** → linguagem formal, atributiva, institucional:
+`said`, `reuters`, `president donald`, nomes de países, verbos de atribuição
 
-**Fake news** → emotional, polarizing, sensationalist language:
-charged political terms, informal framing, language of urgency and outrage
+**Notícias falsas** → linguagem emocional, polarizadora, sensacionalista:
+termos políticos carregados, enquadramento informal, linguagem de urgência e indignação
 
-> Note: `reuters` still appears as a top feature for real news even after byline removal — because Reuters is cited by name throughout real article bodies (*"according to Reuters"*). This residual signal is unavoidable without aggressive content filtering.
+> Nota: `reuters` ainda aparece como top feature para notícias reais mesmo após a remoção da byline — porque a Reuters é citada pelo nome ao longo do corpo dos artigos reais (*"according to Reuters"*). Esse sinal residual é inevitável sem filtragem agressiva de conteúdo.
 
 ---
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
 newsguard-nlp/
 │
-├── data/                    # Dataset CSVs (not versioned — download from Kaggle)
+├── data/                    # CSVs do dataset (não versionados — baixar do Kaggle)
 │   ├── Fake.csv
 │   └── True.csv
 │
-├── notebooks/               # One notebook per pipeline level
+├── notebooks/               # Um notebook por nível da pipeline
 │   └── 01_baseline_tfidf_linear_models.ipynb
 │
-├── results/                 # Saved figures, organized by level
+├── results/                 # Figuras salvas, organizadas por nível
 │   └── level1/
 │       ├── eda_overview.png
 │       ├── lr_evaluation.png
@@ -130,7 +130,7 @@ newsguard-nlp/
 │       ├── model_comparison.png
 │       └── feature_importance.png
 │
-├── models/                  # Serialized models (.pkl / .joblib)
+├── models/                  # Modelos serializados (.pkl / .joblib)
 │
 ├── .gitignore
 ├── requirements.txt
@@ -139,37 +139,37 @@ newsguard-nlp/
 
 ---
 
-## Getting Started
+## Como Executar
 
 ```bash
-# 1. Clone and enter the repo
+# 1. Clonar o repositório
 git clone https://github.com/Filip3Owl/Newsguard-Nlp.git
 cd Newsguard-Nlp
 
-# 2. Create virtual environment
+# 2. Criar o ambiente virtual
 python3 -m venv venv
 source venv/bin/activate        # macOS/Linux
 # venv\Scripts\activate         # Windows
 
-# 3. Install dependencies
+# 3. Instalar dependências
 pip install -r requirements.txt
 
-# 4. Register the Jupyter kernel
+# 4. Registrar o kernel Jupyter
 python3 -m ipykernel install --user --name "fakenews-venv" --display-name "Python (fakeNews)"
 
-# 5. Download the dataset
+# 5. Baixar o dataset
 # → https://www.kaggle.com/clmentbisaillon/fake-and-real-news-dataset
-# Place files at: data/Fake.csv and data/True.csv
+# Salvar em: data/Fake.csv e data/True.csv
 
-# 6. Run the notebook
+# 6. Abrir o notebook
 jupyter notebook notebooks/01_baseline_tfidf_linear_models.ipynb
 ```
 
-Select kernel **"Python (fakeNews)"** when prompted.
+Ao abrir, selecionar o kernel **"Python (fakeNews)"**.
 
 ---
 
-## References
+## Referências
 
 - Pedregosa, F. et al. (2011). *Scikit-learn: Machine Learning in Python*. JMLR, 12, 2825–2830.
 - Joachims, T. (1998). *Text Categorization with Support Vector Machines*. ECML.
