@@ -22,7 +22,7 @@ Antes de treinar qualquer modelo, identificamos duas armadilhas críticas de **d
 |-------|-----------|--------|
 | **1** | TF-IDF + Regressão Logística + LinearSVC | ✅ Concluído |
 | **2** | Features Estilométricas + XGBoost + SHAP | ✅ Concluído |
-| 3 | BiLSTM + GloVe / TextCNN | 🔜 Próximo |
+| **3** | BiLSTM + GloVe / TextCNN | ✅ Concluído |
 | 4 | DistilBERT / RoBERTa Fine-tuning | 🔜 Planejado |
 | 5 | Ensemble Heterogêneo | 🔜 Planejado |
 
@@ -202,6 +202,86 @@ O `title_caps_ratio` domina com SHAP médio de 6,85 — **10× maior que a segun
 | LinearSVC | 1 | 0,9939 | 0,9996 |
 | XGBoost Estilométrico | 2-A | 0,9975 | 0,9999 |
 | **XGBoost Híbrido** | **2-B** | **0,9990** | **1,0000** |
+
+---
+
+## Nível 3 — BiLSTM + GloVe / TextCNN
+
+### A Hipótese
+
+Os Níveis 1 e 2 tratam o texto como um **saco de palavras** — ignora completamente a ordem em que as palavras aparecem. Para o TF-IDF, *"Trump acusou Biden"* e *"Biden acusou Trump"* produzem vetores idênticos.
+
+O Nível 3 explora a **estrutura sequencial** do texto com dois modelos que operam sobre representações densas (word embeddings) em vez de vetores esparsos.
+
+### GloVe — Embeddings Pré-treinados
+
+Os vetores **GloVe 6B.100d** (Pennington et al., 2014) foram treinados em 6 bilhões de tokens da Wikipedia e Gigaword. Cada palavra é mapeada para um vetor de 100 dimensões onde **proximidade = similaridade semântica**:
+
+$$\vec{\text{king}} - \vec{\text{man}} + \vec{\text{woman}} \approx \vec{\text{queen}}$$
+
+Cobertura no vocabulário do corpus: **96,3%** das 30.000 palavras mais frequentes possuem vetor GloVe.
+
+### Dois Modelos
+
+**Modelo A — BiLSTM + GloVe**
+
+O BiLSTM processa a sequência em **duas direções** — da esquerda para a direita e da direita para a esquerda — capturando dependências de longo alcance que RNNs simples perdem. Cada célula LSTM usa três gates (forget, input, output) para controlar o fluxo de informação ao longo da sequência.
+
+```
+Embedding GloVe (frozen) → SpatialDropout(0.3) → BiLSTM(64) → Dense(64) → σ
+```
+
+**Modelo B — TextCNN + GloVe**
+
+O TextCNN (Kim, 2014) aplica convoluções 1D em paralelo com 3 tamanhos de filtro (k=2,3,4) detectando bigramas, trigramas e quadrigramas semânticos. O global max-pooling torna o modelo invariante à posição — um padrão de fake news é detectado independente de onde aparece no artigo.
+
+```
+Embedding GloVe (frozen) → Conv1D(k=2,3,4 × 128 filtros) → GlobalMaxPool → Concat → σ
+```
+
+### Resultados
+
+| Modelo | F1 Macro | ROC-AUC | Erros no teste | Treino |
+|--------|----------|---------|----------------|--------|
+| **BiLSTM + GloVe** | **0,9987** | **0,9997** | 9 / 6.735 | ~10 min (CPU) |
+| TextCNN + GloVe | 0,9835 | 0,9987 | 110 / 6.735 | ~3 min (CPU) |
+
+O BiLSTM errou apenas **9 artigos em 6.735** — 0,13% de erro no conjunto de teste.
+
+### Análise de Erros — BiLSTM
+
+Com apenas 9 erros, cada caso é informativo:
+
+**Falsos Positivos (Fake → predito Real):** artigos falsos que imitam o estilo Reuters — mencionam "Reuters" explicitamente no título (*"WHY REUTERS IS SAYING..."*) ou usam linguagem formal atípica para fake news. O modelo, treinado em texto pré-processado, foi confundido pelo mesmo sinal que usamos para prevenir data leakage.
+
+**Falsos Negativos (Real → predito Fake):** artigos da Reuters com títulos curtos e diretos (*"Obama knocks Trump, voices optimism"*, *"Clinton says Trump is most divisive..."*) — manchetes telegráficas sem a estrutura narrativa longa típica dos artigos reais. O modelo classificou com base no padrão de uma frase curta e polarizadora — semelhante ao estilo de fake news clickbait.
+
+### Benchmark Acumulado — Nível 1 + Nível 2 + Nível 3
+
+![Model Comparison Level 3](results/level3/model_comparison.png)
+
+| Modelo | Nível | F1 Macro | ROC-AUC |
+|--------|-------|----------|---------|
+| Regressão Logística | 1 | 0,9878 | 0,9991 |
+| LinearSVC | 1 | 0,9939 | 0,9996 |
+| XGBoost Estilométrico | 2-A | 0,9975 | 0,9999 |
+| XGBoost Híbrido | 2-B | **0,9990** | 1,0000 |
+| **BiLSTM + GloVe** | **3-A** | **0,9987** | 0,9997 |
+| TextCNN + GloVe | 3-B | 0,9835 | 0,9987 |
+
+O BiLSTM (0,9987) ficou a **0,03 pp** do XGB Híbrido (0,9990) — diferença de 3 erros em 6.735 artigos. A sequência temporal do texto não forneceu vantagem significativa sobre a abordagem híbrida estilo+vocabulário do Nível 2.
+
+O TextCNN (0,9835) ficou aquém — a convolução com embeddings estáticos captura menos informação contextual que o LSTM. Com embeddings contextuais (Nível 4), essa limitação desaparece.
+
+### Avaliação dos Modelos
+
+**BiLSTM + GloVe**
+
+![BiLSTM Evaluation](results/level3/bilstm_evaluation.png)
+
+**TextCNN + GloVe**
+
+![TextCNN Evaluation](results/level3/textcnn_evaluation.png)
 
 ---
 

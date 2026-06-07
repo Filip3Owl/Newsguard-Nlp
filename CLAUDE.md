@@ -24,7 +24,8 @@ fakeNewVsReal/
 │
 ├── notebooks/             # Um notebook por nível da pipeline
 │   ├── 01_baseline_tfidf_linear_models.ipynb
-│   └── 02_stylometric_xgboost.ipynb
+│   ├── 02_stylometric_xgboost.ipynb
+│   └── 03_bilstm_embeddings.ipynb
 │
 ├── results/               # Figuras geradas pelos notebooks
 │   ├── level1/            # Saídas do notebook 01
@@ -33,12 +34,16 @@ fakeNewVsReal/
 │   │   ├── svm_evaluation.png
 │   │   ├── model_comparison.png
 │   │   └── feature_importance.png
-│   └── level2/            # Saídas do notebook 02
-│       ├── eda_stylometric.png
-│       ├── xgb_stylometric_evaluation.png
-│       ├── xgb_hybrid_evaluation.png
-│       ├── shap_beeswarm.png
-│       ├── shap_importance.png
+│   ├── level2/            # Saídas do notebook 02
+│   │   ├── eda_stylometric.png
+│   │   ├── xgb_stylometric_evaluation.png
+│   │   ├── xgb_hybrid_evaluation.png
+│   │   ├── shap_beeswarm.png
+│   │   ├── shap_importance.png
+│   │   └── model_comparison.png
+│   └── level3/            # Saídas do notebook 03
+│       ├── bilstm_evaluation.png
+│       ├── textcnn_evaluation.png
 │       └── model_comparison.png
 │
 ├── models/                # Modelos serializados (ainda vazio)
@@ -53,19 +58,24 @@ fakeNewVsReal/
 
 ## Ambiente Python
 
+### Níveis 1 e 2 — Python 3.14 (venv clássico)
 - **Venv**: `venv/` na raiz do projeto
 - **Ativar**: `source venv/bin/activate`
-- **Instalar**: `pip install -r requirements.txt`
-- **Kernel Jupyter registrado**: `fakenews-venv` → `Python (fakeNews)`
+- **Kernel**: `fakenews-venv` → `Python (fakeNews)`
   - Registrar: `python3 -m ipykernel install --user --name "fakenews-venv" --display-name "Python (fakeNews)"`
-- **Executar notebook**: `jupyter notebook notebooks/<nome>.ipynb`
 
-**Versões fixadas** (ver `requirements.txt`):
-- Python 3.14 (venv local)
-- pandas 3.0.3, numpy 2.4.6, scikit-learn 1.9.0
-- matplotlib 3.10.9, seaborn 0.13.2, nltk 3.9.4
-- xgboost 3.2.0, shap 0.52.0
-- jupyter 1.1.1, ipykernel 7.2.0
+**Versões** (Python 3.14): pandas 3.0.3, numpy 2.4.6, scikit-learn 1.9.0, matplotlib 3.10.9, seaborn 0.13.2, nltk 3.9.4, xgboost 3.2.0, jupyter 1.1.1
+
+### Nível 3+ — Python 3.11 (venv311 — deep learning)
+- **Venv**: `venv311/` na raiz do projeto (Python 3.11 via Homebrew)
+- **Ativar**: `source venv311/bin/activate`
+- **Kernel**: `fakenews-dl` → `Python (fakeNews DL)`
+  - Registrar: `venv311/bin/python3.11 -m ipykernel install --user --name "fakenews-dl" --display-name "Python (fakeNews DL)"`
+- **Por que Python 3.11**: TensorFlow/Keras não tem wheels para Python 3.14
+
+**Versões** (Python 3.11): tensorflow 2.16.2, keras 3.14.1, numpy 1.26.4, pandas, scikit-learn, matplotlib, seaborn, nltk, jupyter
+
+**GloVe**: `data/glove/glove.6B.zip` (~822MB, não versionado) e `data/glove/glove.6B.100d.txt` (~160MB extraído)
 
 ---
 
@@ -75,7 +85,7 @@ fakeNewVsReal/
 |-------|----------|---------|--------|
 | 1 | `01_baseline_tfidf_linear_models.ipynb` | TF-IDF + Logistic Regression + LinearSVC | ✅ Completo |
 | 2 | `02_stylometric_xgboost.ipynb` | Feature Engineering Estilométrico + XGBoost + SHAP | ✅ Completo |
-| 3 | `03_bilstm_embeddings.ipynb` | BiLSTM + GloVe / TextCNN | 🔜 Próximo |
+| 3 | `03_bilstm_embeddings.ipynb` | BiLSTM + GloVe / TextCNN | ✅ Completo |
 | 4 | `04_transformers_finetuning.ipynb` | DistilBERT / RoBERTa Fine-tuning | 🔜 Planejado |
 | 5 | `05_ensemble.ipynb` | Ensemble Heterogêneo (stacking) | 🔜 Planejado |
 
@@ -138,6 +148,18 @@ Features estilométricas (23): word_count, unique_word_ratio, avg_word_len, sent
 Top SHAP features: title_caps_ratio (6.85), title_char_count (1.50), quote_count (0.86), question_count (0.64), title_caps_word_ratio (0.63).
 
 **Nota:** O modelo híbrido usa TF-IDF de 15k features (não 100k) pois XGBoost com sparse matrices de 100k features causa timeout na CV. Modelos lineares (SVM, LR) exploram espaços TF-IDF de 100k melhor.
+
+### Resultados — Nível 3
+| Modelo | Features | F1 Macro | ROC-AUC | Erros teste | Treino (CPU) |
+|--------|----------|----------|---------|-------------|--------------|
+| BiLSTM + GloVe | seq 200 tokens, embed 100d | **0.9987** | 0.9997 | 9/6.735 | ~10 min |
+| TextCNN + GloVe | seq 200 tokens, embed 100d | 0.9835 | 0.9987 | 110/6.735 | ~3 min |
+
+Configuração: MAX_LEN=200, MAX_VOCAB=30k, GloVe 6B 100d frozen, BiLSTM(64 units bidirect.), TextCNN(k=2,3,4 × 128 filtros), batch=512, EarlyStopping patience=2.
+
+**Nota CPU**: BiLSTM 2 camadas causa timeout em execução via nbconvert — usar 1 camada. MAX_LEN>200 também torna o treino inviável (>1h/run).
+
+O BiLSTM (0.9987) ficou 0.03pp abaixo do XGB Híbrido (0.9990) — diferença de apenas 3 erros.
 
 Qualquer novo modelo deve superar **F1 Macro > 0.9990** para justificar complexidade adicional.
 
