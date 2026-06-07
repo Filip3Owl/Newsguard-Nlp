@@ -21,8 +21,8 @@ Antes de treinar qualquer modelo, identificamos duas armadilhas críticas de **d
 | Nível | Abordagem | Status |
 |-------|-----------|--------|
 | **1** | TF-IDF + Regressão Logística + LinearSVC | ✅ Concluído |
-| 2 | Features Estilométricas + XGBoost + SHAP | 🔜 Próximo |
-| 3 | BiLSTM + GloVe / TextCNN | 🔜 Planejado |
+| **2** | Features Estilométricas + XGBoost + SHAP | ✅ Concluído |
+| 3 | BiLSTM + GloVe / TextCNN | 🔜 Próximo |
 | 4 | DistilBERT / RoBERTa Fine-tuning | 🔜 Planejado |
 | 5 | Ensemble Heterogêneo | 🔜 Planejado |
 
@@ -110,6 +110,56 @@ termos políticos carregados, enquadramento informal, linguagem de urgência e i
 
 ---
 
+## Nível 2 — Feature Engineering Estilométrico + XGBoost
+
+### A Hipótese
+
+O Nível 1 aprendeu *o quê* está escrito — o vocabulário. Mas notícias falsas e verdadeiras diferem também em *como* estão escritas: pontuação, capitalização, densidade de sentenças, riqueza de vocabulário. Essas dimensões são invisíveis para o TF-IDF.
+
+**Estilometria** é o estudo quantitativo do estilo de escrita. Aplicada aqui, transforma características textuais em features numéricas independentes do vocabulário — capturando o estilo jornalístico formal da Reuters versus o estilo emocional/sensacionalista dos sites de desinformação.
+
+### As 22 Features Estilométricas
+
+| Grupo | Features | Intuição |
+|-------|----------|----------|
+| **Riqueza Lexical** | TTR (type-token ratio), comprimento médio de palavra | Reuters usa vocabulário diverso e técnico |
+| **Estrutura de Sentenças** | contagem, comprimento médio e desvio padrão | Jornalismo formal tem sentenças mais longas e regulares |
+| **Pontuação & Emoção** | exclamações, interrogações, reticências, URLs, aspas | Fake news abusa de marcadores de urgência e sensacionalismo |
+| **Capitalização** | ratio de caracteres e palavras em CAPS | ALL CAPS é sinal clássico de clickbait |
+| **Título** | comprimento, CAPS ratio, presença de `!` e `?` | O título é o principal veículo de manipulação |
+
+### Por que XGBoost?
+
+Features estilométricas são heterogêneas (contagens, ratios, booleans) — modelos lineares tratam todas simetricamente, o que é subótimo. O **XGBoost** usa árvores de decisão sequenciais que:
+- São invariantes a escala (não precisam de normalização)
+- Capturam interações não-lineares (ex: CAPS alto *e* exclamações → quase certamente fake)
+- Integram nativamente com o SHAP TreeExplainer para explicações exatas
+
+### Dois Modelos
+
+- **Modelo A — XGBoost Estilométrico (22 features):** isola o poder do estilo de escrita puro
+- **Modelo B — XGBoost Híbrido (TF-IDF + 22 features):** combina vocabulário e estilo para o melhor dos dois mundos
+
+### Análise SHAP
+
+O **TreeExplainer** calcula os Shapley values exatos para cada predição — sem aproximação. O beeswarm plot revela como cada feature estilométrica empurra a predição em direção a Fake ou Real para cada artigo individualmente.
+
+![SHAP Beeswarm](results/level2/shap_beeswarm.png)
+
+![SHAP Importance](results/level2/shap_importance.png)
+
+### Avaliação
+
+![XGBoost Estilométrico](results/level2/xgb_stylometric_evaluation.png)
+
+![XGBoost Híbrido](results/level2/xgb_hybrid_evaluation.png)
+
+### Comparação com Nível 1
+
+![Model Comparison Level 2](results/level2/model_comparison.png)
+
+---
+
 ## Estrutura do Projeto
 
 ```
@@ -120,15 +170,23 @@ newsguard-nlp/
 │   └── True.csv
 │
 ├── notebooks/               # Um notebook por nível da pipeline
-│   └── 01_baseline_tfidf_linear_models.ipynb
+│   ├── 01_baseline_tfidf_linear_models.ipynb
+│   └── 02_stylometric_xgboost.ipynb
 │
 ├── results/                 # Figuras salvas, organizadas por nível
-│   └── level1/
-│       ├── eda_overview.png
-│       ├── lr_evaluation.png
-│       ├── svm_evaluation.png
-│       ├── model_comparison.png
-│       └── feature_importance.png
+│   ├── level1/
+│   │   ├── eda_overview.png
+│   │   ├── lr_evaluation.png
+│   │   ├── svm_evaluation.png
+│   │   ├── model_comparison.png
+│   │   └── feature_importance.png
+│   └── level2/
+│       ├── eda_stylometric.png
+│       ├── xgb_stylometric_evaluation.png
+│       ├── xgb_hybrid_evaluation.png
+│       ├── shap_beeswarm.png
+│       ├── shap_importance.png
+│       └── model_comparison.png
 │
 ├── models/                  # Modelos serializados (.pkl / .joblib)
 │
@@ -161,8 +219,9 @@ python3 -m ipykernel install --user --name "fakenews-venv" --display-name "Pytho
 # → https://www.kaggle.com/clmentbisaillon/fake-and-real-news-dataset
 # Salvar em: data/Fake.csv e data/True.csv
 
-# 6. Abrir o notebook
+# 6. Abrir o notebook desejado
 jupyter notebook notebooks/01_baseline_tfidf_linear_models.ipynb
+jupyter notebook notebooks/02_stylometric_xgboost.ipynb
 ```
 
 Ao abrir, selecionar o kernel **"Python (fakeNews)"**.
@@ -174,5 +233,8 @@ Ao abrir, selecionar o kernel **"Python (fakeNews)"**.
 - Pedregosa, F. et al. (2011). *Scikit-learn: Machine Learning in Python*. JMLR, 12, 2825–2830.
 - Joachims, T. (1998). *Text Categorization with Support Vector Machines*. ECML.
 - Salton, G. & Buckley, C. (1988). *Term-weighting approaches in automatic text retrieval*. Information Processing & Management.
+- Chen, T. & Guestrin, C. (2016). *XGBoost: A Scalable Tree Boosting System*. KDD.
+- Lundberg, S.M. & Lee, S. (2017). *A Unified Approach to Interpreting Model Predictions*. NeurIPS.
+- Rashkin, H. et al. (2017). *Truth of Varying Shades: Analyzing Language in Fake News*. EMNLP.
 - Devlin, J. et al. (2019). *BERT: Pre-training of Deep Bidirectional Transformers*. NAACL.
 - Reuters Institute Digital News Report (2023). University of Oxford.

@@ -23,15 +23,23 @@ fakeNewVsReal/
 │   └── True.csv           # 21.417 artigos reais (Reuters), label=1
 │
 ├── notebooks/             # Um notebook por nível da pipeline
-│   └── 01_baseline_tfidf_linear_models.ipynb
+│   ├── 01_baseline_tfidf_linear_models.ipynb
+│   └── 02_stylometric_xgboost.ipynb
 │
 ├── results/               # Figuras geradas pelos notebooks
-│   └── level1/            # Saídas do notebook 01
-│       ├── eda_overview.png
-│       ├── lr_evaluation.png
-│       ├── svm_evaluation.png
-│       ├── model_comparison.png
-│       └── feature_importance.png
+│   ├── level1/            # Saídas do notebook 01
+│   │   ├── eda_overview.png
+│   │   ├── lr_evaluation.png
+│   │   ├── svm_evaluation.png
+│   │   ├── model_comparison.png
+│   │   └── feature_importance.png
+│   └── level2/            # Saídas do notebook 02
+│       ├── eda_stylometric.png
+│       ├── xgb_stylometric_evaluation.png
+│       ├── xgb_hybrid_evaluation.png
+│       ├── shap_beeswarm.png
+│       ├── shap_importance.png
+│       └── model_comparison.png
 │
 ├── models/                # Modelos serializados (ainda vazio)
 ├── venv/                  # Ambiente virtual Python (não versionado)
@@ -56,6 +64,7 @@ fakeNewVsReal/
 - Python 3.14 (venv local)
 - pandas 3.0.3, numpy 2.4.6, scikit-learn 1.9.0
 - matplotlib 3.10.9, seaborn 0.13.2, nltk 3.9.4
+- xgboost 3.2.0, shap 0.52.0
 - jupyter 1.1.1, ipykernel 7.2.0
 
 ---
@@ -65,8 +74,8 @@ fakeNewVsReal/
 | Nível | Notebook | Técnica | Status |
 |-------|----------|---------|--------|
 | 1 | `01_baseline_tfidf_linear_models.ipynb` | TF-IDF + Logistic Regression + LinearSVC | ✅ Completo |
-| 2 | `02_stylometric_xgboost.ipynb` | Feature Engineering Estilométrico + XGBoost + SHAP | 🔜 Próximo |
-| 3 | `03_bilstm_embeddings.ipynb` | BiLSTM + GloVe / TextCNN | 🔜 Planejado |
+| 2 | `02_stylometric_xgboost.ipynb` | Feature Engineering Estilométrico + XGBoost + SHAP | ✅ Completo |
+| 3 | `03_bilstm_embeddings.ipynb` | BiLSTM + GloVe / TextCNN | 🔜 Próximo |
 | 4 | `04_transformers_finetuning.ipynb` | DistilBERT / RoBERTa Fine-tuning | 🔜 Planejado |
 | 5 | `05_ensemble.ipynb` | Ensemble Heterogêneo (stacking) | 🔜 Planejado |
 
@@ -116,7 +125,15 @@ PALETTE = {
 | Logistic Regression | 0.9878 | 0.9991 | 0.70s |
 | LinearSVC | 0.9939 | 0.9997 | 3.94s |
 
-Qualquer novo modelo deve superar **F1 Macro > 0.9939** para justificar complexidade adicional.
+### Resultados — Nível 2
+| Modelo | Features | F1 Macro | ROC-AUC |
+|--------|----------|----------|---------|
+| XGBoost Estilométrico | 22 features de estilo | *executar NB 02* | *executar NB 02* |
+| XGBoost Híbrido | TF-IDF (100k) + 22 estilométricas | *executar NB 02* | *executar NB 02* |
+
+Features estilométricas implementadas: TTR, avg_word_len, avg_sent_len, std_sent_len, exclamation_count, caps_ratio, caps_word_ratio, url_count, quote_count, number_ratio, comma_ratio, ellipsis_count, sent_count, word_count, unique_word_ratio, title_word_count, title_char_count, title_avg_word_len, title_caps_ratio, title_caps_word_ratio, title_has_exclamation, title_has_question, title_word_ratio.
+
+Qualquer novo modelo deve superar o melhor resultado do Nível 2 para justificar complexidade adicional.
 
 ---
 
