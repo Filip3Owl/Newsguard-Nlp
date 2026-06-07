@@ -137,12 +137,33 @@ Features estilométricas são heterogêneas (contagens, ratios, booleans) — mo
 
 ### Dois Modelos
 
-- **Modelo A — XGBoost Estilométrico (22 features):** isola o poder do estilo de escrita puro
-- **Modelo B — XGBoost Híbrido (TF-IDF + 22 features):** combina vocabulário e estilo para o melhor dos dois mundos
+- **Modelo A — XGBoost Estilométrico (23 features):** isola o poder do estilo de escrita puro
+- **Modelo B — XGBoost Híbrido (TF-IDF 15k + 23 features):** combina vocabulário e estilo para o melhor dos dois mundos
+
+### Resultados
+
+| Modelo | Features | F1 Macro | ROC-AUC | Treino |
+|--------|----------|----------|---------|--------|
+| XGBoost Estilométrico | 23 features de estilo | **0,9975** | **0,9999** | 1,5s |
+| XGBoost Híbrido | TF-IDF (15k) + 23 features | **0,9990** | **1,0000** | 171s |
+
+O modelo híbrido supera o benchmark do Nível 1 (LinearSVC F1=0,9939) em **+0,51 pp**.
+
+Validação cruzada 5-fold do Modelo A: **0,9977 ± 0,0009** — baixa variância, boa generalização.
 
 ### Análise SHAP
 
-O **TreeExplainer** calcula os Shapley values exatos para cada predição — sem aproximação. O beeswarm plot revela como cada feature estilométrica empurra a predição em direção a Fake ou Real para cada artigo individualmente.
+Os Shapley values (calculados via `pred_contribs` nativo do XGBoost) revelam quais features estilométricas mais discriminam as classes:
+
+| Feature | |SHAP| médio | Direção | Interpretação |
+|---------|-----------|---------|---------------|
+| `title_caps_ratio` | **6,85** | → Fake | Títulos fake têm 36% de letras MAIÚSCULAS vs 6,7% nos reais |
+| `title_char_count` | 1,50 | → Fake | Títulos fake são ~46% mais longos (94 vs 65 chars) |
+| `quote_count` | 0,86 | → Real | Reuters usa aspas para atribuição de falas |
+| `question_count` | 0,64 | → Fake | Perguntas retóricas como técnica de engajamento |
+| `title_caps_word_ratio` | 0,63 | → Fake | Palavras ALL CAPS nos títulos (clickbait) |
+
+O **TreeExplainer** calcula os Shapley values exatos para cada predição — sem aproximação. O beeswarm plot revela como cada feature empurra a predição em direção a Fake ou Real para cada artigo individualmente.
 
 ![SHAP Beeswarm](results/level2/shap_beeswarm.png)
 

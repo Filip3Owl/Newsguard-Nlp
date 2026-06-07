@@ -126,14 +126,20 @@ PALETTE = {
 | LinearSVC | 0.9939 | 0.9997 | 3.94s |
 
 ### Resultados — Nível 2
-| Modelo | Features | F1 Macro | ROC-AUC |
-|--------|----------|----------|---------|
-| XGBoost Estilométrico | 22 features de estilo | *executar NB 02* | *executar NB 02* |
-| XGBoost Híbrido | TF-IDF (100k) + 22 estilométricas | *executar NB 02* | *executar NB 02* |
+| Modelo | Features | F1 Macro | ROC-AUC | Treino |
+|--------|----------|----------|---------|--------|
+| XGBoost Estilométrico | 23 features de estilo | 0.9975 | 0.9999 | 1.5s |
+| XGBoost Híbrido | TF-IDF (15k) + 23 estilométricas | **0.9990** | **1.0000** | 171s |
 
-Features estilométricas implementadas: TTR, avg_word_len, avg_sent_len, std_sent_len, exclamation_count, caps_ratio, caps_word_ratio, url_count, quote_count, number_ratio, comma_ratio, ellipsis_count, sent_count, word_count, unique_word_ratio, title_word_count, title_char_count, title_avg_word_len, title_caps_ratio, title_caps_word_ratio, title_has_exclamation, title_has_question, title_word_ratio.
+CV 5-fold (Modelo A): 0.9977 ± 0.0009
 
-Qualquer novo modelo deve superar o melhor resultado do Nível 2 para justificar complexidade adicional.
+Features estilométricas (23): word_count, unique_word_ratio, avg_word_len, sent_count, avg_sent_len, std_sent_len, exclamation_count, question_count, ellipsis_count, comma_ratio, quote_count, number_ratio, url_count, caps_ratio, caps_word_ratio, title_word_count, title_char_count, title_avg_word_len, title_caps_ratio, title_caps_word_ratio, title_has_exclamation, title_has_question, title_word_ratio.
+
+Top SHAP features: title_caps_ratio (6.85), title_char_count (1.50), quote_count (0.86), question_count (0.64), title_caps_word_ratio (0.63).
+
+**Nota:** O modelo híbrido usa TF-IDF de 15k features (não 100k) pois XGBoost com sparse matrices de 100k features causa timeout na CV. Modelos lineares (SVM, LR) exploram espaços TF-IDF de 100k melhor.
+
+Qualquer novo modelo deve superar **F1 Macro > 0.9990** para justificar complexidade adicional.
 
 ---
 
