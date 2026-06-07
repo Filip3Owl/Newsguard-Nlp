@@ -114,70 +114,94 @@ termos políticos carregados, enquadramento informal, linguagem de urgência e i
 
 ### A Hipótese
 
-O Nível 1 aprendeu *o quê* está escrito — o vocabulário. Mas notícias falsas e verdadeiras diferem também em *como* estão escritas: pontuação, capitalização, densidade de sentenças, riqueza de vocabulário. Essas dimensões são invisíveis para o TF-IDF.
+O Nível 1 aprendeu *o quê* está escrito — o vocabulário. Mas notícias falsas e verdadeiras diferem também em *como* estão escritas: pontuação, capitalização, estrutura de sentenças, riqueza de vocabulário. Essas dimensões são completamente invisíveis para o TF-IDF, que destrói toda pontuação e ordem.
 
-**Estilometria** é o estudo quantitativo do estilo de escrita. Aplicada aqui, transforma características textuais em features numéricas independentes do vocabulário — capturando o estilo jornalístico formal da Reuters versus o estilo emocional/sensacionalista dos sites de desinformação.
+**Estilometria** é o estudo quantitativo do estilo de escrita. Originalmente usada para análise de autoria literária, aplica-se aqui para capturar o contraste entre o jornalismo formal da Reuters e o estilo emocional/sensacionalista dos sites de desinformação.
 
-### As 22 Features Estilométricas
+### As 23 Features Estilométricas
 
-| Grupo | Features | Intuição |
-|-------|----------|----------|
-| **Riqueza Lexical** | TTR (type-token ratio), comprimento médio de palavra | Reuters usa vocabulário diverso e técnico |
-| **Estrutura de Sentenças** | contagem, comprimento médio e desvio padrão | Jornalismo formal tem sentenças mais longas e regulares |
-| **Pontuação & Emoção** | exclamações, interrogações, reticências, URLs, aspas | Fake news abusa de marcadores de urgência e sensacionalismo |
-| **Capitalização** | ratio de caracteres e palavras em CAPS | ALL CAPS é sinal clássico de clickbait |
-| **Título** | comprimento, CAPS ratio, presença de `!` e `?` | O título é o principal veículo de manipulação |
+| Grupo | Features (8) | Diferença medida |
+|-------|-------------|-----------------|
+| **Riqueza Lexical** | TTR, comprimento médio de palavra | TTR: 0,627 real vs 0,596 fake (+5%) |
+| **Estrutura de Sentenças** | contagem, comprimento médio, desvio padrão | Sentenças reais ~8% mais longas |
+| **Pontuação & Emoção** | exclamações, interrogações, reticências, aspas, vírgulas, números, URLs | Exclamações: 0,72 fake vs 0,06 real (−91%) |
+| **Capitalização** | ratio de chars CAPS, ratio de palavras ALL-CAPS | CAPS char ratio: 5,73% fake vs 4,42% real |
+| **Título** | comprimento, CAPS ratio, palavras ALL-CAPS, `!`, `?`, comprimento médio de palavra, ratio título/texto | Title CAPS ratio: **36,4% fake vs 6,7% real** |
+
+### EDA Estilométrica
+
+![EDA Estilométrica](results/level2/eda_stylometric.png)
+
+Os box plots confirmam que as diferenças mais marcantes estão no **título**, não no corpo:
+
+- `title_caps_word_ratio`: **21,1% das palavras em ALL CAPS** nos títulos falsos vs 3,8% nos reais
+- `title_has_exclamation`: **13,9% dos títulos falsos** têm `!` vs apenas 0,08% dos reais
+- `url_count`: artigos falsos têm **91× mais URLs** no corpo (0,20 vs 0,002 por artigo)
+- `quote_count`: artigos reais têm **32× mais aspas** — atribuição direta de falas (estilo Reuters)
 
 ### Por que XGBoost?
 
-Features estilométricas são heterogêneas (contagens, ratios, booleans) — modelos lineares tratam todas simetricamente, o que é subótimo. O **XGBoost** usa árvores de decisão sequenciais que:
-- São invariantes a escala (não precisam de normalização)
-- Capturam interações não-lineares (ex: CAPS alto *e* exclamações → quase certamente fake)
-- Integram nativamente com o SHAP TreeExplainer para explicações exatas
+Features estilométricas são heterogêneas — contagens, ratios, booleanos — com distribuições e escalas completamente diferentes. O **XGBoost** (gradient boosting com regularização) é a escolha natural porque:
+- Árvores de decisão são invariantes a escala (sem normalização necessária)
+- Capturam interações não-lineares: *CAPS alto* **e** *título longo* → quase certamente fake
+- Implementam TreeSHAP nativamente para explicações exatas por predição
 
 ### Dois Modelos
 
-- **Modelo A — XGBoost Estilométrico (23 features):** isola o poder do estilo de escrita puro
-- **Modelo B — XGBoost Híbrido (TF-IDF 15k + 23 features):** combina vocabulário e estilo para o melhor dos dois mundos
+- **Modelo A — XGBoost Estilométrico (23 features):** estilo puro, sem nenhuma informação de vocabulário. Responde: *"o jeito de escrever sozinho basta?"*
+- **Modelo B — XGBoost Híbrido (TF-IDF 15k + 23 features):** combina as 15.000 features de vocabulário mais discriminativas com todas as features de estilo
+
+> TF-IDF limitado a 15k porque XGBoost com árvores varre todas as features candidatas em cada split — 100k features esparsas tornam a CV inviável (>10 min/fold). Modelos lineares como o LinearSVC exploram espaços TF-IDF de 100k com muito mais eficiência.
 
 ### Resultados
 
-| Modelo | Features | F1 Macro | ROC-AUC | Treino |
-|--------|----------|----------|---------|--------|
-| XGBoost Estilométrico | 23 features de estilo | **0,9975** | **0,9999** | 1,5s |
-| XGBoost Híbrido | TF-IDF (15k) + 23 features | **0,9990** | **1,0000** | 171s |
+| Modelo | Features | F1 Macro | ROC-AUC | CV 5-fold | Treino |
+|--------|----------|----------|---------|-----------|--------|
+| XGBoost Estilométrico | 23 de estilo | **0,9975** | **0,9999** | 0,9977 ± 0,0009 | 1,5s |
+| XGBoost Híbrido | TF-IDF (15k) + 23 | **0,9990** | **1,0000** | — | 171s |
 
 O modelo híbrido supera o benchmark do Nível 1 (LinearSVC F1=0,9939) em **+0,51 pp**.
 
-Validação cruzada 5-fold do Modelo A: **0,9977 ± 0,0009** — baixa variância, boa generalização.
+Destaque: o Modelo A — com apenas 23 features numéricas e sem nenhuma palavra do texto — já supera a Regressão Logística do Nível 1 que usa 100k features TF-IDF. O estilo de escrita, isolado, é um sinal extremamente forte.
 
 ### Análise SHAP
 
-Os Shapley values (calculados via `pred_contribs` nativo do XGBoost) revelam quais features estilométricas mais discriminam as classes:
-
-| Feature | |SHAP| médio | Direção | Interpretação |
-|---------|-----------|---------|---------------|
-| `title_caps_ratio` | **6,85** | → Fake | Títulos fake têm 36% de letras MAIÚSCULAS vs 6,7% nos reais |
-| `title_char_count` | 1,50 | → Fake | Títulos fake são ~46% mais longos (94 vs 65 chars) |
-| `quote_count` | 0,86 | → Real | Reuters usa aspas para atribuição de falas |
-| `question_count` | 0,64 | → Fake | Perguntas retóricas como técnica de engajamento |
-| `title_caps_word_ratio` | 0,63 | → Fake | Palavras ALL CAPS nos títulos (clickbait) |
-
-O **TreeExplainer** calcula os Shapley values exatos para cada predição — sem aproximação. O beeswarm plot revela como cada feature empurra a predição em direção a Fake ou Real para cada artigo individualmente.
-
-![SHAP Beeswarm](results/level2/shap_beeswarm.png)
+Shapley values calculados via `pred_contribs` nativo do XGBoost (algoritmo TreeSHAP exato, sem aproximação).
 
 ![SHAP Importance](results/level2/shap_importance.png)
 
-### Avaliação
+![SHAP Beeswarm](results/level2/shap_beeswarm.png)
+
+| Feature | \|SHAP\| médio | Direção | Interpretação |
+|---------|--------------|---------|---------------|
+| `title_caps_ratio` | **6,85** | → Fake | Feature dominante por larga margem: 36% CAPS nos títulos falsos vs 6,7% nos reais |
+| `title_char_count` | 1,50 | → Fake | Títulos falsos ~46% mais longos (94 vs 65 chars) — clickbait verboso |
+| `quote_count` | 0,86 | → Real | Reuters cita fontes com aspas diretas — ausente em fake news |
+| `question_count` | 0,64 | → Fake | Perguntas retóricas ("Será que X está escondendo Y?") |
+| `title_caps_word_ratio` | 0,63 | → Fake | Palavras ALL CAPS nos títulos como sinal de alerta |
+
+O `title_caps_ratio` domina com SHAP médio de 6,85 — **10× maior que a segunda feature**. Isso confirma que capitalização excessiva nos títulos é o marcador estilístico mais forte de fake news neste dataset.
+
+### Avaliação dos Modelos
+
+**XGBoost Estilométrico (23 features)**
 
 ![XGBoost Estilométrico](results/level2/xgb_stylometric_evaluation.png)
 
+**XGBoost Híbrido (TF-IDF 15k + 23 features)**
+
 ![XGBoost Híbrido](results/level2/xgb_hybrid_evaluation.png)
 
-### Comparação com Nível 1
+### Benchmark Acumulado — Nível 1 vs Nível 2
 
 ![Model Comparison Level 2](results/level2/model_comparison.png)
+
+| Modelo | Nível | F1 Macro | ROC-AUC |
+|--------|-------|----------|---------|
+| Regressão Logística | 1 | 0,9878 | 0,9991 |
+| LinearSVC | 1 | 0,9939 | 0,9996 |
+| XGBoost Estilométrico | 2-A | 0,9975 | 0,9999 |
+| **XGBoost Híbrido** | **2-B** | **0,9990** | **1,0000** |
 
 ---
 
